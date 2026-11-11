@@ -71,6 +71,7 @@ export const MCP_TOOLS = [
     name: "scan_space_full",
     description:
       "Runs the complete 6-Phase Spacefast Security Audit (Cloudflare + Trail of Bits + Semgrep + SecMon cve.now). Parses manifests/lockfiles, queries OSV + cve.now + CISA KEV + FIRST EPSS, traces code reachability, filters false positives into confirmed/needs_validation/rejected buckets, scans source code for secrets and fail-open defaults, optionally probes the live https://<name>.space.fast URL, and returns a CoverageLedger + RemediationPlan.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     inputSchema: {
       type: "object",
       properties: {
@@ -100,6 +101,7 @@ export const MCP_TOOLS = [
     name: "audit_dependencies",
     description:
       "Parses Space dependency manifests/lockfiles (package-lock.json, pnpm-lock.yaml, yarn.lock, package.json, requirements.txt, Cargo.lock, go.mod), enriches vulnerabilities with OSV + cve.now + CISA KEV + FIRST EPSS, and computes 0-100 deterministic priority scores with code reachability.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     inputSchema: {
       type: "object",
       properties: {
@@ -127,6 +129,7 @@ export const MCP_TOOLS = [
     name: "audit_code_and_secrets",
     description:
       "Scans Space source files for hardcoded API keys/tokens (with automatic redaction), VITE_/NEXT_PUBLIC_ client bundle secret leaks, Trail of Bits insecure-defaults (fail-open secret fallbacks, disabled TLS verification), Semgrep OWASP Top 10 SAST patterns (DOM XSS, eval, SQLi), and sensitive exposed files (.env, .git, .pem, .js.map).",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     inputSchema: {
       type: "object",
       properties: {
@@ -149,6 +152,7 @@ export const MCP_TOOLS = [
     name: "probe_live_space",
     description:
       "Probes a live https://<name>.space.fast deployment for publicly downloadable sensitive files (/.env, /.git/HEAD, /package.json, /package-lock.json, *.js.map) with SPA catch-all false-positive filtering, and audits HTTP security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options).",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     inputSchema: {
       type: "object",
       properties: {
@@ -164,6 +168,7 @@ export const MCP_TOOLS = [
     name: "compare_space_drift",
     description:
       "Compares local workspace files against live Spacefast Space files to detect dependency version drift, missing lockfiles on the Space, or vulnerabilities fixed locally that have not yet been published to the live Space.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     inputSchema: {
       type: "object",
       properties: {
@@ -197,6 +202,7 @@ export const MCP_TOOLS = [
     name: "plan_space_remediation",
     description:
       "Generates an exact package.json remediation patch, unified diff, and step-by-step Spacefast MCP publish plan for vulnerable dependencies.",
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
     inputSchema: {
       type: "object",
       properties: {
