@@ -1,0 +1,14 @@
+{
+  "name": "spacefast-sec",
+  "owner": {
+    "name": "Security Monitor (secmon)",
+    "url": "https://github.com/umitaltinozzz/security-monitor"
+  },
+  "plugins": [
+    {
+      "name": "spacefast-sec",
+      "source": ".",
+      "description": "SecMon x Spacefast 6-Phase Security & CVE Auditor. Scans Spacefast (*.space.fast / drop.fast) projects for CVEs (OSV + cve.now + CISA KEV + EPSS), leaked secrets, VITE_/NEXT_PUBLIC_ bundle leaks, fail-open defaults, live HTTP exposure, and local-vs-Space drift."
+    }
+  ]
+}

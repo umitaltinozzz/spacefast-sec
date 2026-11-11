@@ -1,0 +1,52 @@
+{
+  "name": "spacefast-sec",
+  "version": "0.2.0",
+  "description": "SecMon x Spacefast 6-Phase Security & CVE Auditor. Scans Spacefast (*.space.fast / drop.fast) projects for CVEs (OSV + cve.now + CISA KEV + EPSS), leaked secrets, VITE_/NEXT_PUBLIC_ bundle leaks, fail-open defaults, live HTTP exposure, and local-vs-Space drift.",
+  "author": {
+    "name": "Security Monitor (secmon)",
+    "url": "https://github.com/umitaltinozzz/security-monitor"
+  },
+  "repository": "https://github.com/umitaltinozzz/spacefast-sec",
+  "license": "Apache-2.0",
+  "keywords": [
+    "spacefast",
+    "security",
+    "cve",
+    "secmon",
+    "osv",
+    "cve-now",
+    "secret-scanning",
+    "sast"
+  ],
+  "homepage": "https://github.com/umitaltinozzz/spacefast-sec",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/spacefast-security/SKILL.md"
+    }
+  },
+  "interface": {
+    "displayName": "Spacefast Security (SecMon)",
+    "shortDescription": "Audit Spacefast Spaces for CVEs, leaked secrets & live exposure",
+    "longDescription": "Brings the deterministic Security Monitor (secmon) vulnerability engine to Spacefast (*.space.fast and drop.fast). Audits dependencies against OSV, cve.now, CISA KEV, and FIRST EPSS; detects hardcoded secrets, VITE_/NEXT_PUBLIC_ client-bundle leaks, fail-open defaults, and OWASP SAST patterns; probes live Space URLs for exposed .env/package.json/source-map files; and generates unified package.json diffs for one-chat remediation.",
+    "developerName": "Security Monitor (secmon)",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Audit my Spacefast Space for CVEs, leaked secrets, and live exposed files.",
+      "Compare my local project dependencies against my deployed Spacefast Space for security drift.",
+      "Generate a non-breaking package.json fix for all confirmed vulnerabilities in my Space."
+    ],
+    "websiteURL": "https://github.com/umitaltinozzz/spacefast-sec",
+    "privacyPolicyURL": "https://github.com/umitaltinozzz/security-monitor/blob/main/docs/privacy.md",
+    "supportURL": "https://github.com/umitaltinozzz/spacefast-sec/issues",
+    "brandColor": "#0B0F19",
+    "composerIcon": "./assets/logo.png",
+    "logo": "./assets/logo.png"
+  }
+}

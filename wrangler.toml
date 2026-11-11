@@ -16,7 +16,7 @@ PROBE_ALLOWED_SUFFIXES = "space.fast,drop.fast"
 # Set to "true" to allow custom domains (DNS answers are checked for private IPs).
 PROBE_ALLOW_CUSTOM_DOMAINS = "false"
 # Comma-separated browser origins allowed to call /mcp. CLI/desktop MCP clients send no Origin.
-ALLOWED_ORIGINS = ""
+ALLOWED_ORIGINS = "https://claude.ai,https://chatgpt.com"
 
 # Per-IP rate limit (Workers Rate Limiting binding): 30 requests / 60 s.
 [[ratelimits]]

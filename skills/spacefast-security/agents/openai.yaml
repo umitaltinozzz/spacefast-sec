@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit Spacefast Security"
+  short_description: "Scan a Spacefast Space for CVEs, leaked secrets, and live exposed files."
+  default_prompt: "Use $spacefast-security to scan my Spacefast Space for CVEs, leaked secrets, and live exposure, and prepare a remediation diff."

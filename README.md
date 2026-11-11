@@ -1,16 +1,71 @@
-# `spacefast-sec` — Security & CVE Auditor MCP for Spacefast (`*.space.fast` / `drop.fast`)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+    <img src="assets/logo-light.png" alt="Security Monitor logo: two raven heads facing outward around an eye" width="220">
+  </picture>
+</p>
 
-<p align="left">
+<h1 align="center">Spacefast Security (<code>spacefast-sec</code>)</h1>
+
+<p align="center"><strong>SecMon × Spacefast: 6-Phase Security &amp; CVE Auditor MCP Server + Plugin for <code>*.space.fast</code> and <code>drop.fast</code></strong></p>
+
+<p align="center">
   <a href="https://github.com/umitaltinozzz/security-monitor"><img alt="Parent Project: Security Monitor (secmon)" src="https://img.shields.io/badge/SecMon-security--monitor-blue"></a>
   <img alt="Runtime: Cloudflare Workers" src="https://img.shields.io/badge/runtime-Cloudflare%20Workers-F38020">
   <img alt="Protocol: Streamable HTTP MCP" src="https://img.shields.io/badge/MCP-Streamable%20HTTP-6E56CF">
   <img alt="API Keys Required: Zero" src="https://img.shields.io/badge/API%20keys-none%20(keyless)-2ea44f">
+  <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue">
 </p>
 
-`spacefast-sec` is a standalone, keyless **Cloudflare Worker Streamable HTTP MCP Server** and **Unified 6-Phase Security Skill** (`skills/spacefast-security/SKILL.md`) built to work alongside Automattic's official **Spacefast MCP (`https://mcp.spacefast.com`)** in a single coding-agent chat session (Claude Code, Codex, Cursor, OpenCode, Antigravity).
+`spacefast-sec` is a standalone, keyless **Cloudflare Worker Streamable HTTP MCP Server** and **Multi-Agent Security Plugin** (`skills/spacefast-security/SKILL.md`) built to work alongside Automattic's official **Spacefast MCP (`https://mcp.spacefast.com`)** in a single chat session.
 
 > **Companion to [Security Monitor (`secmon`)](https://github.com/umitaltinozzz/security-monitor):**
 > `spacefast-sec` brings the deterministic vulnerability matching, `cve.now` + OSV + CISA KEV + FIRST EPSS prioritization, repository-to-production drift detection, and strict **fail-closed (`needs_validation`)** rules from **[umitaltinozzz/security-monitor](https://github.com/umitaltinozzz/security-monitor)** directly to Spacefast (`*.space.fast` and `drop.fast`) deployments.
+
+---
+
+## Install as a Plugin (All AI Tools & Web UI)
+
+Just like [`spacefast/plugins`](https://github.com/spacefast/plugins), this repository includes native plugin manifests (`.claude-plugin`, `.codex-plugin`, `.cursor-plugin`, `.antigravity-plugin`, `.plugin`, `.grok-plugin`, `.kimi-plugin`, `.factory-plugin`, `GEMINI.md`, and `.mcp.json`) so you can install both the **Spacefast MCP + `spacefast-sec` MCP** and the **6-Phase Security Skill** with a single command:
+
+### Claude Code
+```bash
+claude plugin marketplace add umitaltinozzz/spacefast-sec
+claude plugin install spacefast-sec@spacefast-sec
+```
+
+### OpenAI Codex
+```bash
+codex plugin marketplace add umitaltinozzz/spacefast-sec
+codex plugin add spacefast-sec@spacefast-sec
+```
+
+### Cursor
+```bash
+npx -y plugins add umitaltinozzz/spacefast-sec -t cursor -y
+```
+
+### GitHub Copilot CLI
+```bash
+copilot plugin install umitaltinozzz/spacefast-sec
+```
+
+### Antigravity (`agy`)
+```bash
+agy plugin install https://github.com/umitaltinozzz/spacefast-sec
+```
+
+### Goose
+```bash
+DISABLE_TELEMETRY=1 npx -y skills@1.5.23 add https://github.com/umitaltinozzz/spacefast-sec/tree/main/skills --agent goose --skill '*' --yes
+```
+
+### Claude.ai Web & ChatGPT Web (`chatgpt.com`)
+In **Claude.ai** (*Settings → Integrations → Add Remote MCP*) or **ChatGPT** (*Settings → Connectors → Add MCP Server*), add:
+- **Spacefast MCP:** `https://mcp.spacefast.com`
+- **Spacefast Security MCP:** `https://spacefast-sec-mcp.<your-subdomain>.workers.dev/mcp`
+
+(`ALLOWED_ORIGINS` in [`wrangler.toml`](wrangler.toml) pre-authorizes `https://claude.ai` and `https://chatgpt.com`.)
 
 ---
 
@@ -29,7 +84,7 @@ With `spacefast` MCP + `spacefast-sec` MCP configured together, your coding agen
 
 ```mermaid
 flowchart LR
-  subgraph Agent["Your Coding Agent (Claude Code, Codex, Cursor, OpenCode)"]
+  subgraph Agent["Your Coding Agent (Claude Code, Codex, Cursor, OpenCode, Web UI)"]
     Skill["6-Phase Skill (skills/spacefast-security/SKILL.md)"]
   end
 
@@ -97,7 +152,7 @@ Following [Security Monitor's core rule](https://github.com/umitaltinozzz/securi
 
 ---
 
-## Quick Start
+## Self-Hosting / Development
 
 ```bash
 # 1. Install dependencies
@@ -114,25 +169,6 @@ pnpm dev
 pnpm deploy
 ```
 
-### Connect your Coding Agent (`.mcp.json`)
-
-Add both Automattic's Spacefast MCP and `spacefast-sec` to your project's `.mcp.json` (or Claude Code / Cursor / Codex / OpenCode MCP config) and copy [`skills/spacefast-security/SKILL.md`](skills/spacefast-security/SKILL.md) into your agent's skills directory:
-
-```json
-{
-  "mcpServers": {
-    "spacefast": {
-      "type": "http",
-      "url": "https://mcp.spacefast.com"
-    },
-    "spacefast-sec": {
-      "type": "http",
-      "url": "https://spacefast-sec-mcp.<your-subdomain>.workers.dev/mcp"
-    }
-  }
-}
-```
-
 ---
 
 ## Configuration (`wrangler.toml`, zero API keys)
@@ -147,7 +183,7 @@ All upstream vulnerability feeds are public and keyless:
 | `FIRST_EPSS_URL` | `https://api.first.org/data/v1/epss` | Exploit Prediction Scoring System (EPSS) scores and percentiles. |
 | `PROBE_ALLOWED_SUFFIXES` | `space.fast,drop.fast` | Host suffixes the live probe may target (prevents misuse as an open scanner). |
 | `PROBE_ALLOW_CUSTOM_DOMAINS` | `false` | When `"true"`, allows custom domains after verifying via DNS-over-HTTPS (DoH) that A/AAAA records do not resolve to private/loopback IPs. |
-| `ALLOWED_ORIGINS` | `""` | Browser origins allowed to call `/mcp` (CLI/desktop MCP clients send no `Origin` header). |
+| `ALLOWED_ORIGINS` | `"https://claude.ai,https://chatgpt.com"` | Browser origins allowed to call `/mcp` (CLI/desktop MCP clients send no `Origin` header). |
 | `RATE_LIMITER` | 30 req / 60 s per IP | Cloudflare Workers Rate Limiting binding. |
 
 ---
@@ -156,7 +192,7 @@ All upstream vulnerability feeds are public and keyless:
 
 - **[Security Monitor (`secmon`)](https://github.com/umitaltinozzz/security-monitor)** — The main local-first desktop app, CLI, read-only Linux SSH agent, and Rust vulnerability engine that powers the `secmon` ecosystem.
 - **[cve.now](https://cve.now)** — Curated CVE feed and summaries used by Security Monitor and `spacefast-sec` (CC BY 4.0).
-- **[Spacefast Plugins & MCP](https://mcp.spacefast.com)** — Official Spacefast MCP server for creating, editing, and publishing Spaces.
+- **[Spacefast Plugins & MCP](https://github.com/spacefast/plugins)** — Official Spacefast MCP server and plugins for creating, editing, and publishing Spaces.
 
 ## License
 

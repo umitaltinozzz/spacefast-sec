@@ -1,0 +1,31 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "spacefast-sec",
+  "description": "SecMon x Spacefast Security & CVE Auditor plugin for Claude Code.",
+  "owner": {
+    "name": "Security Monitor (secmon)",
+    "url": "https://github.com/umitaltinozzz/security-monitor"
+  },
+  "plugins": [
+    {
+      "name": "spacefast-sec",
+      "displayName": "Spacefast Security (SecMon)",
+      "description": "Audit Spacefast (*.space.fast / drop.fast) projects for CVEs (OSV + cve.now + CISA KEV + EPSS), leaked secrets, client-bundle leaks, live HTTP exposure, and local-vs-Space drift, and apply approved package.json fixes.",
+      "author": {
+        "name": "Security Monitor (secmon)",
+        "url": "https://github.com/umitaltinozzz/security-monitor"
+      },
+      "category": "security",
+      "homepage": "https://github.com/umitaltinozzz/spacefast-sec",
+      "keywords": [
+        "spacefast",
+        "security",
+        "cve",
+        "secmon",
+        "osv",
+        "cve-now"
+      ],
+      "source": "."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.umitaltinozzz/spacefast-sec",
+  "title": "Spacefast Security (SecMon)",
+  "description": "SecMon x Spacefast 6-Phase Security & CVE Auditor (OSV + cve.now + CISA KEV + EPSS, secret/SAST scan, live exposure probe, local-vs-Space drift).",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/umitaltinozzz/spacefast-sec/main/assets/logo.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/umitaltinozzz/spacefast-sec",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/umitaltinozzz/security-monitor",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://spacefast-sec-mcp.<your-subdomain>.workers.dev/mcp"
+    }
+  ]
+}

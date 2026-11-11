@@ -1,0 +1,20 @@
+{
+  "name": "spacefast-sec",
+  "interface": {
+    "displayName": "Spacefast Security (SecMon)"
+  },
+  "plugins": [
+    {
+      "name": "spacefast-sec",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "NONE"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

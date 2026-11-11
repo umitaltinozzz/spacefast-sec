@@ -1,0 +1,29 @@
+{
+  "name": "spacefast-sec",
+  "version": "0.2.0",
+  "description": "SecMon x Spacefast 6-Phase Security & CVE Auditor. Scans Spacefast (*.space.fast / drop.fast) projects for CVEs (OSV + cve.now + CISA KEV + EPSS), leaked secrets, VITE_/NEXT_PUBLIC_ bundle leaks, fail-open defaults, live HTTP exposure, and local-vs-Space drift.",
+  "author": {
+    "name": "Security Monitor (secmon)",
+    "url": "https://github.com/umitaltinozzz/security-monitor"
+  },
+  "repository": "https://github.com/umitaltinozzz/spacefast-sec",
+  "license": "Apache-2.0",
+  "keywords": [
+    "spacefast",
+    "security",
+    "cve",
+    "secmon",
+    "osv",
+    "cve-now",
+    "secret-scanning",
+    "sast"
+  ],
+  "domains": [
+    "spacefast.com",
+    "space.fast",
+    "drop.fast",
+    "cve.now"
+  ],
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills/"
+}
