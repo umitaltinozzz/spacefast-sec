@@ -1,0 +1,28 @@
+name = "spacefast-sec-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-02-14"
+
+# All upstream sources are public and keyless (no API keys / secrets required).
+[vars]
+CVE_NOW_URL = "https://cve.now"
+OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch"
+OSV_VULN_URL = "https://api.osv.dev/v1/vulns"
+# Comma-separated, tried in order. www.cisa.gov returns 403 to non-browser clients, so the
+# official cisagov/kev-data GitHub mirror comes first.
+CISA_KEV_URL = "https://raw.githubusercontent.com/cisagov/kev-data/main/known_exploited_vulnerabilities.json,https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+FIRST_EPSS_URL = "https://api.first.org/data/v1/epss"
+# Live probe may only target these host suffixes (prevents use as an open scanner).
+PROBE_ALLOWED_SUFFIXES = "space.fast,drop.fast"
+# Set to "true" to allow custom domains (DNS answers are checked for private IPs).
+PROBE_ALLOW_CUSTOM_DOMAINS = "false"
+# Comma-separated browser origins allowed to call /mcp. CLI/desktop MCP clients send no Origin.
+ALLOWED_ORIGINS = ""
+
+# Per-IP rate limit (Workers Rate Limiting binding): 30 requests / 60 s.
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 30
+  period = 60

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "spacefast": {
+      "type": "http",
+      "url": "https://mcp.spacefast.com"
+    },
+    "spacefast-sec": {
+      "type": "http",
+      "url": "https://spacefast-sec-mcp.<your-subdomain>.workers.dev/mcp"
+    }
+  }
+}
