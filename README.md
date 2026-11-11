@@ -63,7 +63,7 @@ DISABLE_TELEMETRY=1 npx -y skills@1.5.23 add https://github.com/umitaltinozzz/sp
 ### Claude.ai Web & ChatGPT Web (`chatgpt.com`)
 In **Claude.ai** (*Settings → Integrations → Add Remote MCP*) or **ChatGPT** (*Settings → Connectors → Add MCP Server*), add:
 - **Spacefast MCP:** `https://mcp.spacefast.com`
-- **Spacefast Security MCP:** `https://spacefast-sec-mcp.<your-subdomain>.workers.dev/mcp`
+- **Spacefast Security MCP:** `https://spacefast-sec-mcp.umiqi.workers.dev/mcp`
 
 (`ALLOWED_ORIGINS` in [`wrangler.toml`](wrangler.toml) pre-authorizes `https://claude.ai` and `https://chatgpt.com`.)
 

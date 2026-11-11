@@ -6,7 +6,7 @@
     },
     "spacefast-sec": {
       "type": "http",
-      "url": "https://spacefast-sec-mcp.<your-subdomain>.workers.dev/mcp"
+      "url": "https://spacefast-sec-mcp.umiqi.workers.dev/mcp"
     }
   }
 }

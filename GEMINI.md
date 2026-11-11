@@ -18,7 +18,7 @@ Configure `~/.gemini/settings.json` to connect both the official Spacefast MCP a
       }
     },
     "spacefast-sec": {
-      "httpUrl": "https://spacefast-sec-mcp.<your-subdomain>.workers.dev/mcp"
+      "httpUrl": "https://spacefast-sec-mcp.umiqi.workers.dev/mcp"
     }
   }
 }
