@@ -14,8 +14,13 @@ export interface Env {
   PROBE_ALLOWED_SUFFIXES?: string;
   /** "true" to allow probing custom domains (DNS-checked for private IPs). */
   PROBE_ALLOW_CUSTOM_DOMAINS?: string;
-  /** Optional Workers Rate Limiting binding (see wrangler.toml). */
+  /** Optional Workers Rate Limiting binding (see wrangler.toml), or the in-memory limiter on Node. */
   RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+  /**
+   * Host-specific trusted client IP (Node/Railway adapter). Workers falls back to CF-Connecting-IP,
+   * which Cloudflare sets and clients cannot spoof there.
+   */
+  GET_CLIENT_IP?: (request: Request) => string | null;
 }
 
 const MAX_BODY_BYTES = 30 * 1024 * 1024;
@@ -89,7 +94,7 @@ export default {
 
     if (request.method === "POST" && (url.pathname === "/mcp" || url.pathname === "/")) {
       if (env.RATE_LIMITER) {
-        const key = request.headers.get("CF-Connecting-IP") ?? "unknown";
+        const key = env.GET_CLIENT_IP?.(request) ?? request.headers.get("CF-Connecting-IP") ?? "unknown";
         const { success } = await env.RATE_LIMITER.limit({ key });
         if (!success) {
           return json({ jsonrpc: "2.0", id: null, error: { code: -32000, message: "Rate limit exceeded" } }, 429, {

@@ -329,6 +329,15 @@ const SECRET_RULES_GLOBAL: RegExp[] = PATTERN_RULES.filter((r) => r.isSecret).ma
   (r) => new RegExp(r.regex.source, r.regex.flags.includes("g") ? r.regex.flags : `${r.regex.flags}g`),
 );
 
+export function isDocumentationFile(filePath: string): boolean {
+  const p = filePath.replace(/\\/g, "/");
+  return (
+    /\.(md|mdx|markdown|txt|rst|adoc)$/i.test(p) ||
+    /(^|\/)(docs?|README)\//i.test(p) ||
+    /(^|\/)(CHANGELOG|LICENSE|README)(\.[a-z]+)?$/i.test(p)
+  );
+}
+
 function isSkippedNonCodeFile(filePath: string): boolean {
   const lower = filePath.toLowerCase();
   return (
@@ -382,13 +391,17 @@ export function scanCodeAndSecrets(files: SpaceFileInput[]): CodeAndSecretFindin
       continue;
     }
 
+    // Documentation (README.md, docs/, Spacefast's rendered README/ page) only gets secret rules:
+    // code-pattern rules there match prose and examples, not executed code.
+    const docsOnly = isDocumentationFile(normalizedPath);
+
     const lines = file.content.split(/\r?\n/);
     for (let idx = 0; idx < lines.length; idx++) {
       const line = lines[idx] ?? "";
       const lineNumber = idx + 1;
       const trimmed = line.trim();
 
-      if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("#")) {
+      if (docsOnly || !trimmed || trimmed.startsWith("//") || trimmed.startsWith("#")) {
         for (const rule of PATTERN_RULES) {
           if (!rule.isSecret) continue;
           const match = rule.regex.exec(line);
@@ -404,7 +417,9 @@ export function scanCodeAndSecrets(files: SpaceFileInput[]): CodeAndSecretFindin
               severity: rule.severity,
               verdict: rule.verdict,
               title: rule.title,
-              description: `${rule.title} detected in comment at ${normalizedPath}:${lineNumber}. Even commented-out secrets are shipped to browsers in unminified builds or source maps.`,
+              description: docsOnly
+                ? `${rule.title} detected in documentation at ${normalizedPath}:${lineNumber}. Documentation files are often deployed and publicly readable.`
+                : `${rule.title} detected in comment at ${normalizedPath}:${lineNumber}. Even commented-out secrets are shipped to browsers in unminified builds or source maps.`,
               file: normalizedPath,
               line: lineNumber,
               snippetRedacted: buildSnippet(line, rule),
@@ -436,6 +451,29 @@ export function scanCodeAndSecrets(files: SpaceFileInput[]): CodeAndSecretFindin
           line: lineNumber,
           snippetRedacted,
           remediationHint: rule.remediationHint,
+        });
+      }
+    }
+
+    // Third-party <script src> without Subresource Integrity (HTML only, never docs).
+    if (!docsOnly && /\.html?$/i.test(normalizedPath)) {
+      for (const m of file.content.matchAll(/<script\b[^>]*\bsrc\s*=\s*["'](https?:)?\/\/[^"']+["'][^>]*>/gi)) {
+        const tag = m[0];
+        if (/\bintegrity\s*=/i.test(tag)) continue;
+        const lineNumber = file.content.slice(0, m.index ?? 0).split(/\r?\n/).length;
+        findings.push({
+          id: `SF-SRI-MISSING:${normalizedPath}:${lineNumber}`,
+          ruleId: "SF-SRI-MISSING",
+          category: "insecure_default_fail_open",
+          severity: "low",
+          verdict: "needs_validation",
+          title: "Third-party script loaded without Subresource Integrity",
+          description: `${normalizedPath}:${lineNumber} loads a script from another origin without an integrity hash. If that CDN or package is compromised, the modified code runs on the Space.`,
+          file: normalizedPath,
+          line: lineNumber,
+          snippetRedacted: tag.slice(0, 220),
+          remediationHint:
+            'Pin an exact version in the URL and add integrity="sha384-..." crossorigin="anonymous" (generate the hash with srihash.org or `openssl dgst -sha384 -binary | openssl base64 -A`), or self-host the file.',
         });
       }
     }

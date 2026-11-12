@@ -6,11 +6,27 @@ import type {
   InventoryReport,
   PrioritizedFinding,
   RemediationAction,
+  CdnUpdate,
   RemediationPlan,
   SpaceFileInput,
+  UnfixedFinding,
 } from "../types.js";
 import { compareSemver } from "./advisories.js";
-import { normalizePath, parseSpaceInventory } from "./inventory.js";
+import { normalizePath, parseCdnReferences, parseSpaceInventory } from "./inventory.js";
+
+const NPM_MANIFEST_OR_LOCK = /(^|\/)(package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|yarn\.lock)$/;
+
+function unfixedMitigations(pkg: string, calledSymbols: string[], viaCdn: boolean): string[] {
+  const out = [
+    `Check whether ${pkg} can be removed or replaced with a maintained alternative.`,
+    calledSymbols.length > 0
+      ? `Limit or remove use of the affected API (${calledSymbols.slice(0, 4).join(", ")}) and never pass untrusted input to it.`
+      : `Confirm which ${pkg} functions the Space actually uses and keep untrusted input away from them.`,
+    "Watch the advisory for a patched release and re-run scan_space_full when one appears.",
+  ];
+  if (viaCdn) out.push("Because it is loaded from a CDN, pin the exact version and add an integrity hash so it cannot change silently.");
+  return out;
+}
 
 /**
  * Compares a local workspace's files against the files currently deployed on a Spacefast Space
@@ -194,11 +210,47 @@ export function planSpaceRemediation(
   findings: PrioritizedFinding[],
 ): RemediationPlan {
   const upgrades = new Map<string, RemediationAction>();
+  const unfixed = new Map<string, UnfixedFinding & { symbols: Set<string> }>();
+
+  // Where each npm package is loaded from: package.json / lockfile, and/or CDN URLs.
+  const managedNames = new Set(
+    parseSpaceInventory(files.filter((f) => NPM_MANIFEST_OR_LOCK.test(normalizePath(f.path))))
+      .components.filter((c) => c.ecosystem === "npm")
+      .map((c) => c.name),
+  );
+  const cdnRefs = files.flatMap((f) =>
+    parseCdnReferences(f.content, normalizePath(f.path)).components.map((c) => ({
+      name: c.name,
+      version: c.version,
+      url: c.cdnUrl ?? "",
+      file: c.sourceFile,
+    })),
+  );
 
   for (const finding of findings) {
     if (finding.verdict === "rejected") continue;
     const fixVer = finding.advisory.recommendedFixVersion;
-    if (!fixVer) continue;
+    if (!fixVer) {
+      const adv = finding.advisory;
+      const key = `${adv.ecosystem}:${adv.package}@${adv.installedVersion}`;
+      const entry =
+        unfixed.get(key) ??
+        ({
+          package: adv.package,
+          ecosystem: adv.ecosystem,
+          installedVersion: adv.installedVersion,
+          advisoryIds: [],
+          priorityScore: 0,
+          reason: adv.fixedVersions.length === 0 ? "no_patched_version" : "installed_branch_not_covered",
+          mitigations: [],
+          symbols: new Set<string>(),
+        } as UnfixedFinding & { symbols: Set<string> });
+      if (!entry.advisoryIds.includes(adv.id)) entry.advisoryIds.push(adv.id);
+      entry.priorityScore = Math.max(entry.priorityScore, finding.priorityScore);
+      finding.reachability.calledSymbols.forEach((s) => entry.symbols.add(s));
+      unfixed.set(key, entry);
+      continue;
+    }
     const key = `${finding.advisory.ecosystem}:${finding.advisory.package}`;
     const existing = upgrades.get(key);
     if (!existing) {
@@ -222,8 +274,37 @@ export function planSpaceRemediation(
   }
 
   const actions = [...upgrades.values()].sort((a, b) => b.priorityScore - a.priorityScore);
-  const npmActions = actions.filter((a) => a.ecosystem === "npm");
   const manualActions = actions.filter((a) => a.ecosystem !== "npm");
+
+  // CDN-loaded copies are fixed by editing the URL, not package.json.
+  const cdnUpdates: CdnUpdate[] = [];
+  for (const act of actions.filter((a) => a.ecosystem === "npm")) {
+    for (const ref of cdnRefs) {
+      if (ref.name !== act.package || compareSemver(ref.version, act.toVersion) >= 0) continue;
+      const suggestedUrl = ref.url.includes(`@${ref.version}`)
+        ? ref.url.replace(`@${ref.version}`, `@${act.toVersion}`)
+        : ref.url.replace(`/${ref.version}/`, `/${act.toVersion}/`);
+      cdnUpdates.push({
+        package: act.package,
+        fromVersion: ref.version,
+        toVersion: act.toVersion,
+        file: ref.file,
+        currentUrl: ref.url,
+        suggestedUrl,
+        fixesAdvisories: act.fixesAdvisories,
+      });
+    }
+  }
+  const cdnOnly = new Set(cdnUpdates.map((u) => u.package).filter((name) => !managedNames.has(name)));
+  // package.json only gets packages it actually manages (never CDN-only ones as bogus overrides).
+  const npmActions = actions.filter((a) => a.ecosystem === "npm" && !cdnOnly.has(a.package));
+
+  const unfixedFindings: UnfixedFinding[] = [...unfixed.values()]
+    .map(({ symbols, ...rest }) => ({
+      ...rest,
+      mitigations: unfixedMitigations(rest.package, [...symbols], cdnRefs.some((r) => r.name === rest.package)),
+    }))
+    .sort((a, b) => b.priorityScore - a.priorityScore);
 
   const pkgFile = pickRootPackageJson(files);
   let updatedPackageJson: string | null = null;
@@ -282,7 +363,17 @@ export function planSpaceRemediation(
   ];
   if (manualActions.length > 0) {
     spacefastPublishNotes.push(
-      `6. ${manualActions.length} non-npm upgrade(s) (${[...new Set(manualActions.map((a) => a.ecosystem))].join(", ")}) must be applied manually in their own manifest; no automatic patch was generated.`,
+      `${manualActions.length} non-npm upgrade(s) (${[...new Set(manualActions.map((a) => a.ecosystem))].join(", ")}) must be applied manually in their own manifest; no automatic patch was generated.`,
+    );
+  }
+  if (cdnUpdates.length > 0) {
+    spacefastPublishNotes.push(
+      `${cdnUpdates.length} CDN URL(s) must be edited in place (see cdnUpdates: file, currentUrl, suggestedUrl); the package.json diff does not change what the browser loads from a CDN.`,
+    );
+  }
+  if (unfixedFindings.length > 0) {
+    spacefastPublishNotes.push(
+      `${unfixedFindings.reduce((n, u) => n + u.advisoryIds.length, 0)} advisory(ies) in ${unfixedFindings.length} package(s) have NO fix in this plan (see unfixedFindings). Tell the user explicitly that applying the diff does not resolve them, and present the mitigations.`,
     );
   }
 
@@ -293,6 +384,8 @@ export function planSpaceRemediation(
     overrideField,
     unifiedDiff,
     manualActions,
+    unfixedFindings,
+    cdnUpdates,
     spacefastPublishNotes,
   };
 }

@@ -1,0 +1,10 @@
+node_modules
+dist
+.wrangler
+.git
+test
+assets
+HANDOFF.md
+*.log
+.env
+.env.*

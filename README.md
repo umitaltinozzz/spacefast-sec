@@ -63,9 +63,10 @@ DISABLE_TELEMETRY=1 npx -y skills@1.5.23 add https://github.com/umitaltinozzz/sp
 ### Claude.ai Web & ChatGPT Web (`chatgpt.com`)
 In **Claude.ai** (*Settings → Integrations → Add Remote MCP*) or **ChatGPT** (*Settings → Connectors → Add MCP Server*), add:
 - **Spacefast MCP:** `https://mcp.spacefast.com`
-- **Spacefast Security MCP:** `https://spacefast-sec-mcp.umiqi.workers.dev/mcp`
+- **Spacefast Security MCP:** `https://mcp-production-815872d6.up.railway.app/mcp` (primary, Railway)
+- Alternate endpoint: `https://spacefast-sec-mcp.umiqi.workers.dev/mcp` (Cloudflare Workers edge; on the free Workers plan very large scans may report `dataGaps` because of the 50-subrequest limit)
 
-(`ALLOWED_ORIGINS` in [`wrangler.toml`](wrangler.toml) pre-authorizes `https://claude.ai` and `https://chatgpt.com`.)
+Both endpoints run the same handler and pre-authorize the `https://claude.ai` and `https://chatgpt.com` origins.
 
 ---
 
@@ -93,7 +94,7 @@ flowchart LR
     SFWrite["Write approved package.json diff & republish"]
   end
 
-  subgraph SecMonWorker["spacefast-sec MCP (Cloudflare Worker)"]
+  subgraph SecMonWorker["spacefast-sec MCP (Railway / Cloudflare Workers)"]
     Inv["Multi-ecosystem lockfile & manifest parser"]
     Adv["OSV + cve.now + CISA KEV + FIRST EPSS"]
     Prio["0-100 Priority + Reachability + fp-check"]
@@ -167,7 +168,12 @@ pnpm dev
 
 # 4. Deploy to Cloudflare Workers
 pnpm deploy
+
+# 5. Or run as a plain Node server (Railway, Fly, any container host)
+pnpm build:node && PORT=3000 pnpm start   # or: docker build -t spacefast-sec . && docker run -p 3000:3000 spacefast-sec
 ```
+
+The Node entry (`src/node.ts`) reuses the exact Worker handler. It reads the same variables from the environment, rate limits with an in-memory window (`RATE_LIMIT_PER_MINUTE`, default 30) keyed on the rightmost `X-Forwarded-For` value, and has no subrequest/CPU limits.
 
 ---
 
@@ -196,4 +202,4 @@ All upstream vulnerability feeds are public and keyless:
 
 ## License
 
-Apache-2.0. See [Security Monitor (`umitaltinozzz/security-monitor`)](https://github.com/umitaltinozzz/security-monitor) for full data source attributions.
+MIT, see [LICENSE](LICENSE). See [Security Monitor (`umitaltinozzz/security-monitor`)](https://github.com/umitaltinozzz/security-monitor) for full data source attributions.

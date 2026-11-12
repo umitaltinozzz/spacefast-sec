@@ -226,7 +226,8 @@ describe("Spacefast-Sec Engine & MCP Suite", () => {
 
     const report = await probeLiveSpace("https://demo.space.fast", { fetchImpl: mockFetch });
     expect(report.reachable).toBe(true);
-    expect(report.overallStatus).toBe("critical_exposure");
+    // package.json (medium) + source map (low) are real exposures but not critical ones.
+    expect(report.overallStatus).toBe("needs_hardening");
     // /.env SPA fallback was rejected; /package.json and /assets/app.js.map were confirmed
     expect(report.exposedPaths.map((p) => p.path)).toEqual(["/package.json", "/assets/app.js.map"]);
   });

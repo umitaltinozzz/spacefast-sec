@@ -17,7 +17,23 @@ Two MCP servers work together in the same session:
 | `spacefast` (`https://mcp.spacefast.com`) | List Spaces, read Space files, write approved changes, publish/build | Security verdicts |
 | `spacefast-sec` | Deterministic audit engine. Read-only, never modifies anything | Writing to the Space |
 
-Use the tools the `spacefast` MCP actually exposes in this session (check its tool list). Do not guess tool names.
+### Spacefast MCP tools this workflow uses
+
+The Spacefast connector exposes ~458 tools (names may carry a client prefix such as `mcp__Spacefast__`). The legacy `search` and `execute` tools are **removed**; do not call them. Use these:
+
+| Step | Tool | Notes |
+|---|---|---|
+| Find the Space | `listSpaces(query?)`, `resolveSpace(ref)`, `getSpace(spaceId)` | `choose_space(query?)` shows a picker in UI clients |
+| List files | `listSpaceSourceFiles(spaceId, recursive?, path?, ref?)` | Source repo view. For uploaded-only Spaces fall back to `listSpaceFiles(spaceId)` |
+| Read a file | `getSpaceSourceFile(spaceId, path, ref?, maxBytes?)` | Spacefast may return secret-looking values as `[redacted]`; that is fine, send what you get |
+| Search code | `searchSpaceSourceFiles(spaceId, pattern, includeGlob?)` | Useful to confirm a finding before reporting it |
+| Edit (after approval) | `createSpaceSourceWorkspace` → `editSpaceSourceWorkspaceFiles` → `getSpaceSourceWorkspaceDiff` → `commitSpaceSourceWorkspaceChanges` | Show the workspace diff before committing |
+| Publish / verify | commit triggers a build; check with `listSpaceVersions`, `getSpaceVersion`, `promoteSpaceVersion` if not auto-promoted, `show_space_deployments` | Report the live version id after publishing |
+| Diagnose | `getSpaceDiagnostics`, `listSpaceEdgeLogs`, `show_space_build_logs` | When a build fails after an upgrade |
+
+If a tool above is missing in the current session, check the connector's tool list rather than guessing a name.
+
+**Client safety prompts:** ChatGPT may show its own confirmation dialog (sometimes labelled "suspicious") before any Spacefast write. That dialog is the client's safety layer, not an error. Explain it to the user and let them decide; never try to avoid it.
 
 ## Non-negotiable rules
 
@@ -47,7 +63,8 @@ Live probing only accepts `*.space.fast` / `*.drop.fast` unless the server enabl
 - `dependencyFindings.confirmed`: the pinned/locked version is affected **and** either it is imported in the provided source, or it is a direct production dependency with a CISA KEV entry.
 - `dependencyFindings.needsValidation`: unpinned range, transitive dependency without a traced import, direct dependency without an import, or the version could not be mapped back. These are **not** safe. Explain what would prove or disprove each one.
 - `dependencyFindings.rejectedFalsePositives`: dev-only and never imported. Mention them briefly.
-- `liveProbe`: `critical_exposure` (a downloadable `.env`, `.git` or manifest), `needs_validation` (some probes timed out or were rate limited, or the URL is unreachable; see `unverifiedPaths`), `needs_hardening` (missing headers or exposed source maps), `clean`.
+- CDN libraries: packages loaded from unpkg / jsdelivr / esm.sh / cdnjs / skypack / jspm in HTML or importmaps are inventoried too. A pinned CDN version that is affected is `confirmed` (it runs in every visitor's browser); an unversioned CDN URL is `needs_validation`. `SF-SRI-MISSING` flags third-party scripts without `integrity`.
+- `liveProbe`: `critical_exposure` (a downloadable `.env` or `.git`), `needs_validation` (some probes timed out or were rate limited, or the URL is unreachable; see `unverifiedPaths`), `needs_hardening` (a public manifest/lockfile or source map, or missing headers), `clean`. Spacefast itself blocks `/.env` (403); a 403 is reported as protected, not exposed.
 - `hardeningRecommended: true`: security headers are missing. Report it even when `overallState` is `clean`.
 
 If a local workspace is also open, call `compare_space_drift` with `{ localFiles, spaceFiles }`. `fixed_locally_vulnerable_in_space` means a fix was never published. When `spaceVersionUnverified` is true, the Space has no lockfile and its version is only a range floor.
@@ -61,6 +78,8 @@ If a local workspace is also open, call `compare_space_drift` with `{ localFiles
 
 ### 5. Remediation (only after approval)
 1. Show `remediationPlan.unifiedDiff` (it applies to `remediationPlan.packageJsonPath`) and `remediationPlan.manualActions` (non-npm upgrades, which must be done by hand). Transitive fixes go through `overrideField` (`overrides` / `pnpm.overrides` / `resolutions`).
+   - `remediationPlan.cdnUpdates`: CDN URLs to edit in place (`file`, `currentUrl` → `suggestedUrl`). The package.json diff does **not** change what the browser loads from a CDN.
+   - `remediationPlan.unfixedFindings`: advisories with **no available fix**. Always tell the user the diff does not resolve them and present the listed `mitigations`.
 2. Ask for approval in the user's language, for example: "Bu `package.json` değişikliğini Space'e uygulayıp lockfile'ı yenileyerek yeniden yayınlayayım mı?"
 3. After a yes:
    - Write `remediationPlan.updatedPackageJson` to the Space with the spacefast MCP.

@@ -18,6 +18,10 @@
   "remotes": [
     {
       "type": "streamable-http",
+      "url": "https://mcp-production-815872d6.up.railway.app/mcp"
+    },
+    {
+      "type": "streamable-http",
       "url": "https://spacefast-sec-mcp.umiqi.workers.dev/mcp"
     }
   ]

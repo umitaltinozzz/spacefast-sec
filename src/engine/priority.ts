@@ -138,8 +138,8 @@ export function evaluateAndPrioritizeFindings(
         reasons.push("production_internet_facing");
       }
 
-      // 4. Code reachability boost
-      if (reachability.importedInCode) {
+      // 4. Code reachability boost (a CDN <script>/importmap load executes in every visitor's browser)
+      if (reachability.importedInCode || comp?.cdnUrl) {
         score += 10;
         reasons.push("reachable_in_space_code");
       }
@@ -175,6 +175,9 @@ export function evaluateAndPrioritizeFindings(
       } else if (reachability.importedInCode) {
         verdict = "confirmed";
         verdictReason = `Pinned version matches the advisory and the package is imported in ${reachability.importedFiles.slice(0, 3).join(", ")}.`;
+      } else if (comp.cdnUrl) {
+        verdict = "confirmed";
+        verdictReason = `Pinned version is loaded at runtime from a CDN (${comp.cdnUrl}), so it runs in every visitor's browser.`;
       } else if (comp.direct && !comp.devOnly && advisory.kevListed) {
         verdict = "confirmed";
         verdictReason =

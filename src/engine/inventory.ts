@@ -330,6 +330,91 @@ function parseGoMod(content: string, sourceFile: string): DependencyComponent[] 
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// CDN references
+// ---------------------------------------------------------------------------
+
+const CDN_SCAN_EXT = /\.(html?|m?[jt]sx?|vue|svelte|astro)$/i;
+const PKG = "((?:@[a-z0-9][\\w.-]*\\/)?[a-z0-9][\\w.-]*)";
+const VER = "(?:@([^/\\s\"'`?#)]+))?";
+const CDN_PATTERNS: { host: string; regex: RegExp }[] = [
+  { host: "unpkg", regex: new RegExp(`https?://unpkg\\.com/${PKG}${VER}`, "gi") },
+  { host: "jsdelivr", regex: new RegExp(`https?://cdn\\.jsdelivr\\.net/npm/${PKG}${VER}`, "gi") },
+  { host: "esm.sh", regex: new RegExp(`https?://esm\\.sh/(?:v\\d+/|stable/)?${PKG}${VER}`, "gi") },
+  { host: "skypack", regex: new RegExp(`https?://cdn\\.skypack\\.dev/${PKG}${VER}`, "gi") },
+  { host: "jspm", regex: new RegExp(`https?://ga\\.jspm\\.io/npm:${PKG}${VER}`, "gi") },
+];
+const CDNJS = /https?:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/([a-z0-9][\w.-]*)\/([^/\s"'`]+)\//gi;
+
+export function parseCdnReferences(
+  content: string,
+  sourceFile: string,
+): { components: DependencyComponent[]; unpinned: InventoryReport["unpinnedWarnings"] } {
+  const components: DependencyComponent[] = [];
+  const unpinned: InventoryReport["unpinnedWarnings"] = [];
+  const seen = new Set<string>();
+
+  const add = (name: string, rawVersion: string | undefined, url: string, host: string) => {
+    const key = `${name}@${rawVersion ?? ""}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const version = rawVersion?.replace(/^v(?=\d)/, "");
+    if (version && isExactVersion(version)) {
+      components.push({
+        ecosystem: "npm",
+        name,
+        version,
+        rawRange: url,
+        pinned: true,
+        devOnly: false,
+        direct: true,
+        cdnUrl: url,
+        sourceFile,
+        purl: makePurl("npm", name, version),
+      });
+      return;
+    }
+    unpinned.push({
+      package: name,
+      rawRange: url,
+      sourceFile,
+      reason: version
+        ? `CDN URL (${host}) uses a version range or tag ("${version}"); the code actually served can change without a deploy (needs_validation).`
+        : `CDN URL (${host}) has no version; it always serves the latest release, so the installed version is unknown (needs_validation).`,
+    });
+    const floor = version ? extractFloorVersion(version) : null;
+    if (floor) {
+      components.push({
+        ecosystem: "npm",
+        name,
+        version: floor,
+        rawRange: url,
+        pinned: false,
+        devOnly: false,
+        direct: true,
+        cdnUrl: url,
+        sourceFile,
+        purl: makePurl("npm", name, floor),
+      });
+    }
+  };
+
+  // The regexes match the URL prefix; report the full URL as written in the file.
+  const fullUrl = (m: RegExpMatchArray) =>
+    content.slice(m.index ?? 0).match(/^[^\s"'`<>)]+/)?.[0] ?? m[0];
+
+  for (const { host, regex } of CDN_PATTERNS) {
+    for (const m of content.matchAll(regex)) {
+      if (m[1]) add(m[1].toLowerCase(), m[2], fullUrl(m), host);
+    }
+  }
+  for (const m of content.matchAll(CDNJS)) {
+    // cdnjs library names mostly match npm names; strip a trailing ".js" (e.g. "lodash.js" -> "lodash").
+    if (m[1]) add(m[1].toLowerCase().replace(/\.js$/, ""), m[2], fullUrl(m), "cdnjs");
+  }
+  return { components, unpinned };
+}
+
 const UNSUPPORTED_MANIFESTS = new Set([
   "pyproject.toml",
   "poetry.lock",
@@ -472,6 +557,15 @@ export function parseSpaceInventory(files: SpaceFileInput[]): InventoryReport {
     }
   }
 
+  // Runtime CDN imports (script tags, importmaps, URL imports). Static drop.fast sites often have
+  // no package.json at all, so without this their libraries would be invisible (fail-open).
+  for (const file of files) {
+    if (!CDN_SCAN_EXT.test(normalizePath(file.path)) || isInsideNodeModules(file.path)) continue;
+    const cdn = parseCdnReferences(file.content, file.path);
+    components.push(...cdn.components);
+    unpinnedWarnings.push(...cdn.unpinned);
+  }
+
   // Mark direct deps; a lockfile entry that is a direct prod dep is never devOnly.
   for (const comp of components) {
     if (comp.ecosystem !== "npm") continue;
@@ -494,6 +588,7 @@ export function parseSpaceInventory(files: SpaceFileInput[]): InventoryReport {
     existing.pinned = existing.pinned || comp.pinned;
     existing.devOnly = existing.devOnly && comp.devOnly;
     existing.direct = Boolean(existing.direct || comp.direct);
+    existing.cdnUrl = existing.cdnUrl ?? comp.cdnUrl;
   }
 
   const missingLockfileFor = [...ecosystemsWithManifest].filter((eco) => !lockedEcosystems.has(eco));

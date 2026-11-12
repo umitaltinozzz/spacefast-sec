@@ -240,6 +240,122 @@ describe("secret redaction", () => {
   });
 });
 
+describe("CDN inventory, SRI and unfixed advisories", () => {
+  const html = [
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>',
+    '<script src="https://unpkg.com/react@18"></script>',
+    '<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-x" crossorigin="anonymous"></script>',
+    '<script type="importmap">{"imports":{"lodash":"https://esm.sh/lodash@4.17.15","dayjs":"https://esm.sh/dayjs"}}</script>',
+  ].join("\n");
+
+  it("inventories pinned CDN libraries and flags unpinned ones", () => {
+    const inv = parseSpaceInventory([{ path: "index.html", content: html }]);
+    const pinned = inv.components.filter((c) => c.pinned).map((c) => `${c.name}@${c.version}`).sort();
+    expect(pinned).toEqual(["@popperjs/core@2.11.8", "jquery@3.4.1", "lodash@4.17.15"]);
+    expect(inv.components.find((c) => c.name === "jquery")?.cdnUrl).toContain("cdnjs.cloudflare.com");
+    expect(inv.unpinnedWarnings.map((w) => w.package).sort()).toEqual(["dayjs", "react"]);
+  });
+
+  it("a static site with only CDN scripts is never reported clean", async () => {
+    const osvNone: typeof fetch = async (input) =>
+      String(input).includes("querybatch")
+        ? new Response(JSON.stringify({ results: [{}, {}, {}, {}] }), { status: 200 })
+        : new Response("nf", { status: 404 });
+    const report = await executeFullSpaceAudit([{ path: "index.html", content: html }], undefined, { fetchImpl: osvNone });
+    expect(report.overallState).not.toBe("clean");
+    expect(report.inventory.components.length).toBeGreaterThan(0);
+  });
+
+  it("flags third-party scripts without integrity, not the ones with it", () => {
+    const sri = scanCodeAndSecrets([{ path: "index.html", content: html }]).filter((f) => f.ruleId === "SF-SRI-MISSING");
+    expect(sri.map((f) => f.line)).toEqual([1, 2]);
+  });
+
+  it("CDN-loaded vulnerable version is confirmed and gets a URL update, not a package.json override", () => {
+    const files = [
+      { path: "index.html", content: '<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>' },
+      { path: "package.json", content: JSON.stringify({ name: "site", dependencies: {} }, null, 2) },
+    ];
+    const inv = parseSpaceInventory(files);
+    const findings = evaluateAndPrioritizeFindings(
+      [advisory({ id: "CVE-2020-11022", package: "jquery", installedVersion: "3.4.1", recommendedFixVersion: "3.5.0", fixedVersions: ["3.5.0"] })],
+      { isLivePublicSpace: true, files, components: inv.components },
+    );
+    expect(findings[0]?.verdict).toBe("confirmed");
+    const plan = planSpaceRemediation(files, findings);
+    expect(plan.cdnUpdates).toEqual([
+      expect.objectContaining({
+        package: "jquery",
+        file: "index.html",
+        currentUrl: "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js",
+        suggestedUrl: "https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.0/jquery.min.js",
+      }),
+    ]);
+    expect(plan.unifiedDiff).toBe("");
+    expect(plan.updatedPackageJson).toBeNull();
+  });
+
+  it("advisories without a fix are listed as unfixed, with mitigations, and never silently dropped", () => {
+    const inv = parseSpaceInventory(lockedLodash);
+    const findings = evaluateAndPrioritizeFindings(
+      [
+        advisory({ id: "GHSA-nofix", fixedVersions: [], recommendedFixVersion: null }),
+        advisory({ id: "GHSA-fixed", fixedVersions: ["4.17.21"], recommendedFixVersion: "4.17.21" }),
+      ],
+      { isLivePublicSpace: false, files: lockedLodash, components: inv.components },
+    );
+    const plan = planSpaceRemediation(lockedLodash, findings);
+    expect(plan.unfixedFindings).toHaveLength(1);
+    expect(plan.unfixedFindings[0]).toEqual(
+      expect.objectContaining({ package: "lodash", reason: "no_patched_version", advisoryIds: ["GHSA-nofix"] }),
+    );
+    expect(plan.unfixedFindings[0]?.mitigations.length).toBeGreaterThan(2);
+    expect(plan.spacefastPublishNotes.some((n) => n.includes("NO fix"))).toBe(true);
+    expect(plan.unifiedDiff).toContain('+    "lodash": "4.17.21"');
+  });
+});
+
+describe("documentation false positives", () => {
+  it("code-pattern rules ignore docs, secret rules still apply", () => {
+    // fake key assembled at runtime so the literal never appears in the repo (GitHub push protection)
+    const fakeStripe = ["sk", "live", "1234567890abcdefghijklmn"].join("_");
+    const findings = scanCodeAndSecrets([
+      { path: "README.md", content: "| unsafe code | `rejectUnauthorized: false`, `eval`, `innerHTML` |" },
+      { path: "README/index.html", content: "<td>rejectUnauthorized: false</td>" },
+      { path: "docs/setup.md", content: `export STRIPE=${fakeStripe}` },
+    ]);
+    expect(findings.some((f) => f.ruleId === "SF-TOB-TLS-BYPASS")).toBe(false);
+    expect(findings.some((f) => f.ruleId === "SF-SAST-DYNAMIC-EVAL")).toBe(false);
+    const stripe = findings.find((f) => f.ruleId === "SF-SEC-STRIPE");
+    expect(stripe?.file).toBe("docs/setup.md");
+    expect(stripe?.snippetRedacted).not.toContain(fakeStripe);
+  });
+
+  it("a public /.git/HEAD is critical_exposure; a public manifest alone is needs_hardening", async () => {
+    const okHeaders = {
+      "content-security-policy": "default-src 'self'",
+      "strict-transport-security": "max-age=31536000",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+    };
+    const make =
+      (exposed: string, body: string): typeof fetch =>
+      async (input) => {
+        const url = String(input);
+        if (url === "https://demo.space.fast") return new Response("<html></html>", { status: 200, headers: okHeaders });
+        if (url.endsWith(exposed)) return new Response(body, { status: 200 });
+        return new Response("nf", { status: 404 });
+      };
+    const git = await probeLiveSpace("https://demo.space.fast", { fetchImpl: make("/.git/HEAD", "ref: refs/heads/main\n") });
+    expect(git.overallStatus).toBe("critical_exposure");
+    const manifest = await probeLiveSpace("https://demo.space.fast", {
+      fetchImpl: make("/package.json", JSON.stringify({ name: "x", dependencies: {} })),
+    });
+    expect(manifest.overallStatus).toBe("needs_hardening");
+    expect(manifest.exposedPaths.map((p) => p.path)).toEqual(["/package.json"]);
+  });
+});
+
 describe("inventory parsers", () => {
   it("yarn berry lockfile", () => {
     const berry = `__metadata:\n  version: 8\n\n"lodash@npm:^4.17.15":\n  version: 4.17.15\n  resolution: "lodash@npm:4.17.15"\n\n"@babel/core@npm:^7.0.0":\n  version: 7.24.0\n\n"app@workspace:.":\n  version: 0.0.0-use.local\n`;

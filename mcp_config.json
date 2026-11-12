@@ -4,7 +4,7 @@
       "serverUrl": "https://mcp.spacefast.com"
     },
     "spacefast-sec": {
-      "serverUrl": "https://spacefast-sec-mcp.umiqi.workers.dev/mcp"
+      "serverUrl": "https://mcp-production-815872d6.up.railway.app/mcp"
     }
   }
 }

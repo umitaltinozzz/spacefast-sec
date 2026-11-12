@@ -26,6 +26,8 @@ export interface DependencyComponent {
   purl: string;
   /** True when the package is declared directly in a manifest (package.json etc.), not only transitively. */
   direct?: boolean;
+  /** Set when the package is loaded at runtime from a public CDN URL (unpkg, jsdelivr, esm.sh, cdnjs, ...). */
+  cdnUrl?: string;
 }
 
 export interface InventoryReport {
@@ -167,6 +169,26 @@ export interface RemediationAction {
   priorityScore: number;
 }
 
+export interface UnfixedFinding {
+  package: string;
+  ecosystem: Ecosystem;
+  installedVersion: string;
+  advisoryIds: string[];
+  priorityScore: number;
+  reason: "no_patched_version" | "installed_branch_not_covered";
+  mitigations: string[];
+}
+
+export interface CdnUpdate {
+  package: string;
+  fromVersion: string;
+  toVersion: string;
+  file: string;
+  currentUrl: string;
+  suggestedUrl: string;
+  fixesAdvisories: string[];
+}
+
 export interface RemediationPlan {
   actions: RemediationAction[];
   updatedPackageJson: string | null;
@@ -177,6 +199,13 @@ export interface RemediationPlan {
   unifiedDiff: string;
   /** Actions that could not be expressed as a package.json patch (non-npm ecosystems). */
   manualActions: RemediationAction[];
+  /**
+   * Advisories that NO proposed change resolves (no patched version published, or the installed
+   * branch is not covered by any fix). The diff must never be presented as fixing these.
+   */
+  unfixedFindings: UnfixedFinding[];
+  /** CDN-loaded packages: the exact URL to change, in which file. package.json cannot fix these. */
+  cdnUpdates: CdnUpdate[];
   spacefastPublishNotes: string[];
 }
 

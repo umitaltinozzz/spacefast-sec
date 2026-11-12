@@ -8,13 +8,21 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:node": "esbuild src/node.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/node.mjs",
+    "start": "node dist/node.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250214.0",
     "@types/node": "^22.13.4",
+    "esbuild": "0.25.10",
     "typescript": "^5.8.2",
     "vitest": "^3.0.7",
     "wrangler": "^4.0.0"
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.27.0",
+  "license": "MIT"
 }

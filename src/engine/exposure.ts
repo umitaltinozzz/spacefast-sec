@@ -434,7 +434,9 @@ export async function probeLiveSpace(
   }
 
   const overallStatus: LiveProbeReport["overallStatus"] =
-    exposedPaths.some((p) => p.severity === "critical" || p.severity === "high" || p.severity === "medium")
+    // Only critical/high exposures (/.env, /.git) earn critical_exposure; a public manifest or
+    // source map is real but lower impact, so it is reported as hardening.
+    exposedPaths.some((p) => p.severity === "critical" || p.severity === "high")
       ? "critical_exposure"
       : unverifiedPaths.length > 0
         ? "needs_validation"

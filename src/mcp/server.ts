@@ -70,7 +70,7 @@ export const MCP_TOOLS = [
   {
     name: "scan_space_full",
     description:
-      "Runs the complete 6-Phase Spacefast Security Audit (Cloudflare + Trail of Bits + Semgrep + SecMon cve.now). Parses manifests/lockfiles, queries OSV + cve.now + CISA KEV + FIRST EPSS, traces code reachability, filters false positives into confirmed/needs_validation/rejected buckets, scans source code for secrets and fail-open defaults, optionally probes the live https://<name>.space.fast URL, and returns a CoverageLedger + RemediationPlan.",
+      "Runs the complete 6-Phase Spacefast Security Audit (Cloudflare + Trail of Bits + Semgrep + SecMon cve.now). Parses manifests/lockfiles, queries OSV + cve.now + CISA KEV + FIRST EPSS, traces code reachability, filters false positives into confirmed/needs_validation/rejected buckets, inventories libraries loaded from CDNs (script tags, importmaps), scans source code for secrets and fail-open defaults, optionally probes the live https://<name>.space.fast URL, and returns a CoverageLedger + RemediationPlan (package.json diff, CDN URL updates, and advisories with no available fix). Send file contents as-is, but for .env*, .npmrc, *.pem, *.key and id_* files send only the path with empty content.",
     inputSchema: {
       type: "object",
       properties: {
@@ -314,6 +314,12 @@ export async function executeFullSpaceAudit(
     liveProbe
       ? `Live Space Probe (${liveProbe.targetUrl}): ${liveProbe.overallStatus}, ${liveProbe.exposedPaths.length} exposed file(s).`
       : undefined,
+    remediationPlan.unfixedFindings.length > 0
+      ? `No fix available for ${remediationPlan.unfixedFindings.map((u) => `${u.package}@${u.installedVersion}`).join(", ")}: the proposed diff does not resolve these.`
+      : undefined,
+    remediationPlan.cdnUpdates.length > 0
+      ? `${remediationPlan.cdnUpdates.length} CDN URL(s) need an in-place version bump (see remediationPlan.cdnUpdates).`
+      : undefined,
     validationReasons.length > 0 ? `Not verified because: ${validationReasons.join("; ")}.` : undefined,
   ]
     .filter(Boolean)
@@ -388,7 +394,7 @@ export async function handleMcpRequest(
           serverInfo: { name: "spacefast-sec-mcp", version: SERVER_VERSION },
           capabilities: { tools: { listChanged: false } },
           instructions:
-            "Security auditor for Spacefast Spaces. Use together with the official Spacefast MCP (https://mcp.spacefast.com). Never report a Space as safe unless overallState is 'clean'.",
+            "Security auditor for Spacefast Spaces. Use together with the official Spacefast MCP (https://mcp.spacefast.com), which reads and writes the Space; this server is read-only. Rules: never report a Space as safe unless overallState is 'clean'; never send the contents of .env*, .npmrc, *.pem, *.key or id_* files (path only, empty content); quote only snippetRedacted; show remediationPlan.unifiedDiff and cdnUpdates and get explicit user approval before changing the Space; always tell the user about remediationPlan.unfixedFindings, which the diff does not resolve.",
         },
       };
     }
